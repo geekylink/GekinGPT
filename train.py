@@ -30,7 +30,7 @@ def getCudaDevice():
     return device
 
 
-def train(inFile: str):
+def train(inFile: str, pathSave: str):
 
     device = getCudaDevice()
     if device == None:
@@ -82,10 +82,10 @@ def train(inFile: str):
             optimizer.step()
 
     print("saving model...")
-    model.save_pretrained("out/lemon-line.model")
+    model.save_pretrained(pathSave)
 
     print("Saving tokenizer...")
-    tokenizer.save_pretrained("out/lemon-line.model")
+    tokenizer.save_pretrained(pathSave)
 
 
     # Move output to CPU for decoding
@@ -127,18 +127,19 @@ if __name__ == "__main__":
 
     args = sys.argv
 
-    if (len(args) < 2 or len(args) > 3):
+    if (len(args) != 3):
         print("Usage:")
-        print("\tpython GekinGPT.py train input.txt")
+        print("\tpython train.py input.txt out/path.model")
         exit()
 
     inFile = args[1]
+    pathSave = args[2]
 
     print("Training with input:", inFile)
     print("Let's gooo....\n")
 
     try:
-        train(args[1])
+        train(inFile, pathSave)
         #run(args[1], args[2])
 
     except FileNotFoundError:

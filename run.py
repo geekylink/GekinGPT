@@ -127,9 +127,9 @@ if __name__ == "__main__":
 
     args = sys.argv
 
-    if (len(args) < 2 or len(args) > 3):
+    if (len(args) != 3):
         print("Usage:")
-        print("\tpython GekinGPT.py run [MODEL-PATH] <PROMPT>")
+        print("\tpython run.py [MODEL-PATH] <PROMPT>")
         exit()
 
     inFile = args[1]
