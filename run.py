@@ -30,72 +30,6 @@ def getCudaDevice():
     return device
 
 
-def train(inFile: str):
-
-    device = getCudaDevice()
-    if device == None:
-        return
-
-    print("Loading tokenizer...")
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
-    print("Loading model...")
-    model = GPT2LMHeadModel.from_pretrained("gpt2")
-    print("Selecting cuda device...")
-    model = model.to(device)  # This moves the model to GPU if available
-
-    print("selecting optimizer...")
-    optimizer = AdamW(model.parameters(), lr=1e-5)  # Define the optimizer, in this case, AdamW.
-
-    print("\nLoading input data...")
-    txtData = ""
-    chunk_size = 4096  # Choose chunk size according to your memory constraints
-
-    with open(inFile) as f:
-        txtData = f.read()
-
-    print("Input data loaded.")
-    print("Input length:", len(txtData))
-    print("Chunking data...")
-    chunks = [txtData[i:i+chunk_size] for i in range(0, len(txtData), chunk_size)]
-
-    print("Tokenizing data...")
-    dataset = TextDataset(chunks, tokenizer)
-    print("Data loader...")
-    dataloader = DataLoader(dataset, batch_size=2)  # Adjust batch_size to fit your GPU
-
-    num_epochs = 1
-
-    for epoch in range(num_epochs):
-        print("Working on epoch", epoch)
-        for batch in dataloader:
-            input_ids, attn_masks = batch
-            input_ids = input_ids.to(device)
-            attn_masks = attn_masks.to(device)
-
-            model.zero_grad()
-            outputs = model(input_ids, attention_mask=attn_masks, labels=input_ids)
-
-            loss = outputs.loss
-            print("Loss:", loss)
-            loss.backward()
-            optimizer.step()
-
-    print("saving model...")
-    model.save_pretrained("out/lemon-line.model")
-
-    print("Saving tokenizer...")
-    tokenizer.save_pretrained("out/lemon-line.model")
-
-
-    # Move output to CPU for decoding
-    #print("moving output to cpu...")
-    #outputs = outputs.cpu()
-
-    #print("generating outputs...")
-    #for i in outputs:
-    #        print(tokenizer.decode(i, skip_special_tokens=True))
-
 def run(modelPath: str, prompt: str):
     #device = getCudaDevice()
     #if device == None:
@@ -123,7 +57,7 @@ def run(modelPath: str, prompt: str):
 
 
 if __name__ == "__main__":
-    print("GekinGPT v0.0.1")
+    print("PicoGPT v0.0.1")
 
     args = sys.argv
 
@@ -135,11 +69,10 @@ if __name__ == "__main__":
     inFile = args[1]
     prompt = args[2]
 
-    print("Training with model:", inFile)
+    print("Generating with model:", inFile)
     print("Let's gooo....\n")
 
     try:
-        #train(args[1])
         run(inFile, prompt)
 
     except FileNotFoundError:
