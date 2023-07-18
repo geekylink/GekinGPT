@@ -1,9 +1,14 @@
 import sys
+import time
 import torch
 import datetime
 import argparse
 from torch.utils.data import Dataset, DataLoader
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, AdamW
+
+VERSION="0.0.1"
+
+START_DELAY=5 # Delay before spinning up your GPU so you can quick confirm settings, set to 0 to skip
 
 class TextDataset(Dataset):
     def __init__(self, txt_list, tokenizer):
@@ -21,7 +26,7 @@ class TextDataset(Dataset):
         return self.input_ids[idx].squeeze(), self.attn_masks[idx].squeeze()
 
 def getCudaDevice():
-    """\
+    """
         Return CUDA device
     """
     device = 'cuda' if torch.cuda.is_available() else 'cpu'  # Use 'cuda:0' if you want to specify GPU number
@@ -76,8 +81,10 @@ def loadData(inFile: str, chunkSize = 4096):
     print("Input length:", dataLen, "bytes")
     print(dataKB, "\tKB")
     print(dataMB, "\tMB")
-    print(dataGB, "\tGB")
-    print(dataTB, "\tTB")
+    if dataMB > 1:
+        print(dataGB, "\tGB")
+    if dataGB > 0.1:
+        print(dataTB, "\tTB")
 
     print("")
     print("Chunking data into chunks of size:", chunkSize)
@@ -159,7 +166,7 @@ def saveModel(model = None, tokenizer = None, outModel: str  = "out/PicoGPT-unna
         tokenizer.save_pretrained(outModel)
 
 
-def train(inFile: str, pathSave: str, inModel: str = "", numEpochs: int = 3):
+def train(inFile: str, pathSave: str, inModel: str = "", numEpochs: int = 3, batchSize: int = 4):
 
     device = getCudaDevice()
     if device == None:
@@ -171,7 +178,7 @@ def train(inFile: str, pathSave: str, inModel: str = "", numEpochs: int = 3):
     # Load and chunk the data to fit into memory
     chunks = loadData(inFile, 4096)
 
-    dataloader = tokenize(tokenizer, chunks, batchSize=4)
+    dataloader = tokenize(tokenizer, chunks, batchSize=batchSize)
 
     # Train for epochs
     print("Starting training routine...")
@@ -192,43 +199,79 @@ def parseArgs():
     """
         CLI Args for training and validation
     """
-    parser = argparse.ArgumentParser(prog="PicoGPT.py", description="Train, finetune, and generate text with GPT models, even on older hardware like 10XX and earlier.")
+    parser = argparse.ArgumentParser(prog="PicoGPT.py", description="Train, finetune, and generate text with GPT models, even on older hardware like 10XX and earlier.", formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument('--prepare', '-p', dest='prepare', action='store_const', 
+                        const=True, default=False, 
+                        help='''It is necessary to prepare the dataset for first time training, chunks and tokenizes.
+On resuming training for additional epochs, prepare is not necessary.
+''')
+
+    parser.add_argument('--input', '-i', metavar='input.txt', dest='input', action='store',
+                        default="",
+                        help='Input text, necessary to provide for initial --prepare Optional on resume')
+
+    parser.add_argument('--model', '-m', metavar='model', dest='inModel', action='store',
+                        default="gpt2",
+                        help='Input model, provide a path to a trained model to resume training. (Default: gpt2)')
+
+    parser.add_argument('--epochs', '-e', metavar='epochs', dest='epochs', action='store',
+                        default=3,
+                        help='How many epochs to train for (Default: 3)')
+
+    parser.add_argument('--batch-size', '-b', metavar='size', dest='batchSize', action='store',
+                        default=4,
+                        help='Batch size, adjust lower for GPUs with less memory (Default: 4)')
+
+    parser.add_argument('outModel', help='''Necessary path to save trained model and tokenizer (Example: out/example.model)
+This output path is also the same path you can use with --input/-i to resume training.
+''')
+
+
 
     args = parser.parse_args()
 
+    if args.prepare and not args.input and args.input != "":
+        raise Exception("--prepare/-p must also have an --input/-i")
+
+    return args
+
 if __name__ == "__main__":
-    print("PicoGPT v0.0.1")
 
-    args = sys.argv
+    args = parseArgs()
 
-    if (len(args) > 5 or len(args) < 3):
-        print("Usage:")
-        print("\tpython train.py [OPT:out/input.model] input.txt out/path.model [OPT:NUM-EPOCHS]")
-        exit()
-
-    if len(args) == 3:
-        inFile = args[1]
-        outModel = args[2]
-    else:
-        inModel = args[1]
-        inFile = args[2]
-        outModel = args[3]
-        numEpochs = int(args[4]) if len(args) == 5 else 3
-
-
-    print("Training with input:", inFile)
-
-    if len(args) == 4:
-        print("Importing pretrained model:", inModel)
-
-    print("Let's gooo....\n")
+    isPrepare = args.prepare
+    inModel   = args.inModel
+    inFile    = args.input
+    outModel  = args.outModel
+    numEpochs = args.epochs
+    batchSize = args.batchSize
 
     try:
-        if len(args) == 3:
-            train(inFile, outModel)
-        else:
-            train(inFile, outModel, inModel, numEpochs)
-        #run(args[1], args[2])
+        print("PicoGPT v" + str(VERSION))
+        print("")
+
+        print("Config for training:")
+        print("====================")
+        print("Importing model:", inModel)
+
+        if args.input:
+            print("Training with input data:", inFile)
+
+        print("Saving output model to:", outModel)
+        print("Training for", numEpochs,"epochs with a batch size of", batchSize)
+        print("====================")
+
+        print("")
+        print("Starting soon. CTRL+C now if you changed your mind.")
+        print("Starting in...", end='')
+        for i in range(START_DELAY):
+            print((START_DELAY-i), ".. ", end='', flush=True)
+            time.sleep(1)
+
+        print("Let's gooo....\n")
+        #print(inFile, outModel, inModel, numEpochs, batchSize)
+        #train(inFile, outModel, inModel, numEpochs, batchSize) 
 
     except FileNotFoundError:
         print("\nERROR: Input file not found:", inFile)
