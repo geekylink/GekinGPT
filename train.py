@@ -271,7 +271,7 @@ if __name__ == "__main__":
 
         print("Let's gooo....\n")
         #print(inFile, outModel, inModel, numEpochs, batchSize)
-        #train(inFile, outModel, inModel, numEpochs, batchSize) 
+        train(inFile, outModel, inModel, numEpochs, batchSize) 
 
     except FileNotFoundError:
         print("\nERROR: Input file not found:", inFile)
