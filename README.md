@@ -5,18 +5,31 @@ This should work on older hardware, such as 10XX series cards, and I think it sh
 
 # Train
 
-First thing you need to do is train your model, you have a couple options for training:
+First thing you need to do is train your model, this is two steps. The first is to tokenize the input data, then you need train for however many epochs
+
+### Prepare - Tokenize your data
+
+
+Run `train.py` with `--prepare` and `--input input.txt` to tokenize data and prepare for training epochs. 
+
+Creates a directory: `out/output.model/`
 
 ```bash
-# Train output.model using input.txt and GPT2
-# Do this first to prepare your model and try quick trial, then continue training below. 
-python train.py --input input.txt [out/output.model]
+python train.py --prepare --input input.txt [out/output.model]
+```
 
-# Train for X epochs using input.model and input.txt and save to output.model
-# Then train again for however many epochs until coherent
-# Note: for input.model you should be able to select any provided model as well, such as gpt2
-# Note: change batchSize for smaller/larger GPUs
-python train.py --model [out/input.model] --input input.txt --epochs X --batchSize 4 [out/output.model]
+Optional note: you can pass `--model` to use any other model provided by https://huggingface.co/models
+You can use it like so: `--model gpt2-xl`
+
+### Train - Run, run, run...
+
+Train for X epochs using input.model and save to output.model Then train again for more epochs until coherent.
+`out/input.model` and `out/output.model` can be the same model to resume and continue training.
+
+Note: change `--batch-size` for smaller/larger GPUs, default is 4.
+
+```bash
+python train.py --model [out/input.model] --epochs X [out/output.model]
 ```
 
 # Generate text with the model

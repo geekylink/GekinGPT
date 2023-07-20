@@ -48,7 +48,7 @@ def run(modelPath: str, prompt: str):
     inputs = tokenizer.encode(prompt, return_tensors='pt')
 
     # Generate text until the word count reaches max_length
-    output = model.generate(inputs, max_length=500, do_sample=True, temperature=0.7)
+    output = model.generate(inputs, max_length=500, do_sample=True, temperature=0.7, repetition_penalty=1.2)
 
     # Now decode the output tensor to readable string
     output_text = tokenizer.decode(output[0])
