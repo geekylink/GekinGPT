@@ -47,13 +47,18 @@ def run(modelPath: str, prompt: str):
     # Encode the input text to tensor of integers by using the tokenizer
     inputs = tokenizer.encode(prompt, return_tensors='pt')
 
-    # Generate text until the word count reaches max_length
-    output = model.generate(inputs, max_length=500, do_sample=True, temperature=0.7, repetition_penalty=1.2)
+    attention_mask = inputs.ne(tokenizer.pad_token_id).float() 
 
-    # Now decode the output tensor to readable string
-    output_text = tokenizer.decode(output[0])
 
-    print(output_text)
+    print("Generating...")
+    for i in range(0, 5):
+        # Generate text until the word count reaches max_length
+        output = model.generate(inputs, max_length=100, do_sample=True, temperature=0.7, repetition_penalty=1.2, attention_mask=attention_mask)
+
+        # Now decode the output tensor to readable string
+        output_text = tokenizer.decode(output[0])
+        print(output_text)
+        print("======================================")
 
 
 if __name__ == "__main__":

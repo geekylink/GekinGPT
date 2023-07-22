@@ -72,9 +72,12 @@ def loadModel(device = None, inModel: str = ""):
     """
     modelPath = inModel if inModel != "" else "gpt2"
 
-    print("Loading tokenizer:", modelPath ,"...")
-    tokenizer = GPT2Tokenizer.from_pretrained(modelPath)
-    tokenizer.pad_token = tokenizer.eos_token
+    if not os.path.isdir(modelPath):
+        print("Loading tokenizer:", modelPath ,"...")
+        tokenizer = GPT2Tokenizer.from_pretrained(modelPath)
+        tokenizer.pad_token = tokenizer.eos_token
+    else:
+        tokenizer = None
     print("Loading model", modelPath ,"...")
     model = GPT2LMHeadModel.from_pretrained(modelPath)
 
@@ -156,7 +159,7 @@ def loadTokenizedData(inModel, batchSize=2):
 
     return dataloader
 
-def saveModel(model = None, tokenizer = None, outModel: str  = "out/PicoGPT-unnamed.model"):
+def saveModel(model = None, tokenizer = None, optimizer = None, outModel: str  = "out/PicoGPT-unnamed.model"):
 
     print("Saving snapshot of model to:", outModel)
 
@@ -167,6 +170,13 @@ def saveModel(model = None, tokenizer = None, outModel: str  = "out/PicoGPT-unna
     if tokenizer:
         print("Saving tokenizer...")
         tokenizer.save_pretrained(outModel)
+
+    if optimizer:
+        print("Saving optimizer and model state...")
+        torch.save({
+                #'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                }, outModel + "./chk.pt")
 
 
 def doEpochs(device, model, tokenizer, dataloader, numEpochs: int = 3, snapshots: int = 1, outModel: str = "out/PicoGPT.unnamed.model"):
@@ -180,10 +190,27 @@ def doEpochs(device, model, tokenizer, dataloader, numEpochs: int = 3, snapshots
 
     # TODO: use something else for optimizer
     print("Selecting optimizer...")
-    optimizer = AdamW(model.parameters(), lr=1e-5)  # Define the optimizer, in this case, AdamW.
+    optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)  # Define the optimizer, in this case, AdamW.
+
+    # Restore the model & optimizer state from previous training if available
+    if os.path.isfile(outModel + "./chk.pt"):
+        print("Restoring model and optimizer state...")
+        checkpoint = torch.load(outModel + "./chk.pt")
+        #model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    else:
+        print("No checkpoint file detected.")
+
+
+    print("Clearing cache...")
+    torch.cuda.empty_cache()
 
     print("")
+    #time.sleep(10)
     print("Starting training...")
+
+    gradientAccum = 2
+    print("snapshots: ", snapshots)
 
     for epoch in range(numEpochs):
         it = 0
@@ -193,38 +220,65 @@ def doEpochs(device, model, tokenizer, dataloader, numEpochs: int = 3, snapshots
         print("Starting Epoch", epoch+1, "of", numEpochs ,"- Batches per epoch:", totalIt, " @", datetime.datetime.now())
         print("==============================")
 
+        # Initialize loss for this epoch
+        epochLoss = 0.0
+
+        model.zero_grad()
+
         for batch in dataloader:
-
             it += 1
-
-            if it % outEvery == 0:
-                print("Epoch", epoch+1, "of", numEpochs, ":: Batch", it, "of", totalIt, ":: Epoch:", round((it/totalIt)*100, 4), "% -:- Training:", round(it/(totalIt*numEpochs)*100, 6), "% @", datetime.datetime.now()) 
 
             input_ids, attn_masks = batch
             input_ids = input_ids.to(device)
             attn_masks = attn_masks.to(device)
 
-            model.zero_grad()
+            # Zero the parameter gradients
+            #model.zero_grad()
+
             outputs = model(input_ids, attention_mask=attn_masks, labels=input_ids)
 
+            # Compute loss
             loss = outputs.loss
+
+            # Accumulate loss for the epoch
+            thisLoss = loss.item()
+            epochLoss += thisLoss
+
+            # Backward propagation and optimization
+            #optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
+
+            if it % gradientAccum == 0:
+                optimizer.step()
+                model.zero_grad()
+
+            # Print status
+            if it % outEvery == 0:
+                averageLoss = epochLoss / (it+1)
+                print("Epoch", epoch+1, "of", numEpochs, ":: Batch", it, "of", totalIt, ":: Epoch:", round((it/totalIt)*100, 4), "%\t-:- Training:", round(((it+(totalIt*epoch))/(totalIt*numEpochs))*100, 6), "%\t -> Loss:", thisLoss, " : Avg Loss:", averageLoss, " @", datetime.datetime.now()) 
+
 
         print("Epoch complete @", datetime.datetime.now())
-        if epoch % snapshots == 0:
-            saveModel(model, tokenizer, outModel)
+
+        # Calculate average loss over one epoch
+        averageLoss = epochLoss / totalIt
+        print(f'Epoch {epoch+1}, Loss: {averageLoss:.4f}')
+
+        if (epoch+1) % snapshots == 0:
+            saveModel(model, tokenizer, optimizer, outModel)
 
 
     print("=====================================================")
     print("Done with epochs, did ", numEpochs, " epochs. Completed @", datetime.datetime.now())
     print("=====================================================")
 
-    saveModel(model, tokenizer, outModel)
+    saveModel(model, tokenizer, optimizer, outModel)
 
 
 def train(inFile: str, pathSave: str, inModel: str = "", numEpochs: int = 3, batchSize: int = 4, prepare: bool = True, snapshots: int = 1):
 
+
+    print("snapshots: ", snapshots)
     device = getCudaDevice()
     if device == None:
         return
@@ -250,6 +304,10 @@ def train(inFile: str, pathSave: str, inModel: str = "", numEpochs: int = 3, bat
     # Train for epochs
     doEpochs(device, model, tokenizer, dataloader, numEpochs, snapshots, outModel)
 
+    # Save
+    if prepare:
+        saveModel(model, tokenizer, outModel=outModel)
+        
 
 
     # Move output to CPU for decoding
