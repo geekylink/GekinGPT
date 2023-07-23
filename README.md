@@ -24,12 +24,14 @@ You can use it like so: `--model gpt2-xl`
 ### Train - Run, run, run...
 
 Train for X epochs using input.model and save to output.model Then train again for more epochs until coherent.
-`out/input.model` and `out/output.model` can be the same model to resume and continue training.
+--model `out/output.model` and `out/output.model` should be the same model to resume and continue training. 
+
+If you wish to save a newly trained model to a new `out/output2.model/` path you should copy the tokenized output from the first step into the new output directory
 
 Note: change `--batch-size` for smaller/larger GPUs, default is 4.
 
 ```bash
-python train.py --model [out/input.model] --epochs X [out/output.model]
+python train.py --model [out/output.model] --epochs X [out/output.model]
 ```
 
 # Generate text with the model
